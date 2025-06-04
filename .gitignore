@@ -1,3 +1,5 @@
+mask_detector.keras
+
 # Python
 __pycache__/
 *.pyc
