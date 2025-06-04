@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.DS_Store
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# IDE configs
+.idea/
+.vscode/
+
+# OS junk
+*.swp
+*.swo
+*.log
+
+# Streamlit
+.streamlit/
