@@ -6,8 +6,21 @@ import cv2
 import numpy as np
 from tensorflow.keras.models import load_model
 
+import os
+import urllib.request
+
 # Load the trained mask detection model
-model = load_model("mask_detector.keras")
+#model = load_model("mask_detector.keras")
+
+# Auto-download model from Hugging Face
+MODEL_URL = "https://huggingface.co/Sooraj-jain/face-mask-detector/resolve/main/mask_detector.keras"
+MODEL_PATH = "mask_detector.keras"
+
+if not os.path.exists(MODEL_PATH):
+    print("📦 Downloading model from Hugging Face...")
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+
+model = load_model(MODEL_PATH)
 
 # Initialize face detection using OpenCV's pre-trained Haar Cascade classifier
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")

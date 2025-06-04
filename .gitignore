@@ -1,5 +1,6 @@
 # Trained Model
 mask_detector.keras
+face-mask-dataset/
 
 # Python
 __pycache__/

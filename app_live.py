@@ -9,8 +9,21 @@ import numpy as np
 from tensorflow.keras.models import load_model
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 
+import os
+import urllib.request
+
 # Load the trained mask detection model
-model = load_model("mask_detector.keras")
+#model = load_model("mask_detector.keras")
+
+# Auto-download model from Hugging Face
+MODEL_URL = "https://huggingface.co/Sooraj-jain/face-mask-detector/resolve/main/mask_detector.keras"
+MODEL_PATH = "mask_detector.keras"
+
+if not os.path.exists(MODEL_PATH):
+    print("📦 Downloading model from Hugging Face...")
+    urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+
+model = load_model(MODEL_PATH)
 
 # Configuration constants
 IMAGE_SIZE = 100  # Size that the model expects
