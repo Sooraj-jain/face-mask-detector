@@ -158,7 +158,8 @@ st.markdown("""
 4. Position your face in front of the camera
 5. The app will show if you're wearing a mask or not
 
-> 💡 **Tip:** The initial loading time is longer because this is running on a free server. Thank you for your patience!
+> 💡 **Tip:** The initial loading time after clicking START may take up to a minute since this is running on a Free server. 
+            Thank you for your patience!
 """)
 
 # Initialize the WebRTC video stream with high quality settings
