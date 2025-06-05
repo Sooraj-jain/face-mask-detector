@@ -15,13 +15,16 @@ import threading
 # Setup Streamlit web interface
 st.title("😷 Live Face Mask Detection")
 
-# Add prominent loading notice
-st.warning("""
-⚠️ **Important Notice:**
-- After clicking START, please wait for about 1-2 minutes for the video to load
-- The green camera light will turn on immediately, but the video feed takes time to initialize
-- This is normal for the free version of the application
-- Please don't close the tab, your video will appear shortly!
+# Add clean, consolidated instructions
+st.info("""
+### Quick Start Guide
+1. Click **START** below and allow camera access.
+2. The green camera light will turn on immediately, but the video feed takes time (up to a minute) to initialize
+3. Position yourself in front of the camera.
+4. Real-time mask detection will begin automatically.
+
+💡 *Note: Initial loading takes about a minute as this runs on a free server. 
+       Thank you for your patience! *
 """)
 
 # Cache the model loading to avoid reloading on every rerun
@@ -32,15 +35,14 @@ def load_face_mask_model():
     
     try:
         model = load_model(LOCAL_MODEL_PATH)
-        st.success("✅ Loaded local model successfully!")
+        st.success("✅ Model loaded successfully!")
     except Exception as e:
-        st.warning("⚠️ Could not load local model. Attempting to download from Hugging Face...")
+        st.info("📦 Downloading model from cloud storage...")
         try:
             if not os.path.exists(LOCAL_MODEL_PATH):
-                with st.spinner("📦 Downloading model from Hugging Face..."):
-                    urllib.request.urlretrieve(BACKUP_MODEL_URL, LOCAL_MODEL_PATH)
+                urllib.request.urlretrieve(BACKUP_MODEL_URL, LOCAL_MODEL_PATH)
             model = load_model(LOCAL_MODEL_PATH)
-            st.success("✅ Downloaded and loaded model successfully!")
+            st.success("✅ Model ready!")
         except Exception as e:
             st.error(f"❌ Error loading model: {str(e)}")
             st.stop()
@@ -147,29 +149,14 @@ class VideoTransformer(VideoTransformerBase):
         
         return img
 
-st.write("Allow camera access and stay in frame to see mask predictions in real time.")
-
-# Add some usage instructions
-st.markdown("""
-### Instructions:
-1. Click the 'START' button below
-2. Allow camera access when prompted
-3. **Wait for 1-2 minutes** for the video feed to initialize
-4. Position your face in front of the camera
-5. The app will show if you're wearing a mask or not
-
-> 💡 **Tip:** The initial loading time after clicking START may take up to a minute since this is running on a Free server. 
-            Thank you for your patience!
-""")
-
 # Initialize the WebRTC video stream with high quality settings
 webrtc_streamer(
     key="mask-detect",
     video_processor_factory=VideoTransformer,
     media_stream_constraints={
         "video": {
-            "frameRate": {"ideal": 30},  # Maximum frame rate for smooth video
-            "width": {"ideal": 1280},    # Higher resolution
+            "frameRate": {"ideal": 30},
+            "width": {"ideal": 1280},
             "height": {"ideal": 720},
             "facingMode": "user"
         },
