@@ -91,5 +91,15 @@ webrtc_streamer(
     key="mask-detect",
     video_processor_factory=VideoTransformer,
     media_stream_constraints={"video": True, "audio": False},
-    async_processing=True
+    async_processing=True,
+    rtc_configuration={
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {
+                "urls": "turn:openrelay.metered.ca:443",
+                "username": "openrelayproject",
+                "credential": "openrelayproject",
+            },
+        ]
+    }
 )
