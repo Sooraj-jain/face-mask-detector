@@ -23,7 +23,7 @@ st.info("""
 3. Position yourself in front of the camera.
 4. Real-time mask detection will begin automatically.
 
-💡 Note: Initial loading takes about a minute as this runs on a free server. 
+💡 Note: Initial loading takes about a minute after you hit *START* as this runs on a free server. 
        Thank you for your patience! 
 """)
 
