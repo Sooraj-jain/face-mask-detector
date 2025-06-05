@@ -7,11 +7,11 @@ It includes data preprocessing, model architecture definition, training, evaluat
 and model serialization.
 
 Key Components:
-- Data loading and preprocessing with augmentation
-- CNN architecture optimized for real-time inference
-- Training with validation monitoring
-- Model evaluation metrics
-- Model serialization in multiple formats
+- Data validation and quality checks
+- Data preprocessing and augmentation
+- Model architecture with validation
+- Training with monitoring
+- Evaluation and metrics
 """
 
 import os
@@ -21,16 +21,21 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
 from tensorflow.keras.utils import to_categorical
 from tensorflow.keras.callbacks import ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split, KFold
+from sklearn.metrics import classification_report, confusion_matrix, roc_curve, auc
 import matplotlib.pyplot as plt
 import seaborn as sns
 import logging
 import json
 from datetime import datetime
+from pathlib import Path
+import shutil
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 # Model Configuration
@@ -41,14 +46,172 @@ CONFIG = {
     "learning_rate": 0.001,
     "dataset_path": "face-mask-dataset",
     "validation_split": 0.2,
-    "random_state": 42
+    "random_state": 42,
+    "min_samples_per_class": 100,  # Minimum required samples per class
+    "required_classes": ["with_mask", "without_mask"],
+    "image_channels": 3,
+    "cross_validation_folds": 5
 }
 
+class DataValidator:
+    """
+    Validates dataset quality and structure before training.
+    """
+    def __init__(self, config):
+        self.config = config
+        self.dataset_path = Path(config["dataset_path"])
+        self.validation_results = {}
+
+    def validate_dataset_structure(self):
+        """Validates the dataset directory structure and minimum requirements."""
+        logger.info("Validating dataset structure...")
+        
+        # Check dataset directory exists
+        if not self.dataset_path.exists():
+            raise ValueError(f"Dataset directory {self.dataset_path} does not exist!")
+
+        # Validate required classes
+        for class_name in self.config["required_classes"]:
+            class_path = self.dataset_path / class_name
+            if not class_path.exists():
+                raise ValueError(f"Required class directory {class_name} not found!")
+            
+            # Count samples
+            samples = list(class_path.glob("*.jpg")) + list(class_path.glob("*.png"))
+            sample_count = len(samples)
+            
+            if sample_count < self.config["min_samples_per_class"]:
+                raise ValueError(
+                    f"Insufficient samples for class {class_name}. "
+                    f"Found {sample_count}, required {self.config['min_samples_per_class']}"
+                )
+            
+            self.validation_results[f"{class_name}_samples"] = sample_count
+            
+            # Validate image integrity
+            corrupt_images = self._validate_images(samples)
+            if corrupt_images:
+                logger.warning(f"Found {len(corrupt_images)} corrupt images in {class_name}")
+                self._handle_corrupt_images(corrupt_images)
+
+        logger.info("Dataset structure validation completed successfully!")
+        return self.validation_results
+
+    def _validate_images(self, image_paths):
+        """Validates each image for corruption and correct dimensions."""
+        corrupt_images = []
+        for img_path in image_paths:
+            try:
+                img = cv2.imread(str(img_path))
+                if img is None:
+                    corrupt_images.append(img_path)
+                    continue
+                
+                # Check dimensions and channels
+                if len(img.shape) != 3 or img.shape[2] != self.config["image_channels"]:
+                    corrupt_images.append(img_path)
+                    continue
+                
+            except Exception as e:
+                logger.error(f"Error reading {img_path}: {str(e)}")
+                corrupt_images.append(img_path)
+                
+        return corrupt_images
+
+    def _handle_corrupt_images(self, corrupt_images):
+        """Moves corrupt images to a separate directory for inspection."""
+        corrupt_dir = self.dataset_path / "corrupt_images"
+        corrupt_dir.mkdir(exist_ok=True)
+        
+        for img_path in corrupt_images:
+            try:
+                shutil.move(str(img_path), str(corrupt_dir / img_path.name))
+                logger.warning(f"Moved corrupt image {img_path.name} to {corrupt_dir}")
+            except Exception as e:
+                logger.error(f"Failed to move corrupt image {img_path}: {str(e)}")
+
+class ModelValidator:
+    """
+    Validates model performance and reliability through cross-validation
+    and various evaluation metrics.
+    """
+    def __init__(self, config):
+        self.config = config
+        self.metrics = {}
+
+    def cross_validate_model(self, X, y, model_builder):
+        """Performs k-fold cross-validation of the model."""
+        logger.info("Starting cross-validation...")
+        
+        kfold = KFold(n_splits=self.config["cross_validation_folds"], 
+                      shuffle=True, 
+                      random_state=self.config["random_state"])
+        
+        fold_metrics = []
+        for fold, (train_idx, val_idx) in enumerate(kfold.split(X)):
+            logger.info(f"Training fold {fold + 1}/{self.config['cross_validation_folds']}")
+            
+            # Split data
+            X_train_fold = X[train_idx]
+            y_train_fold = y[train_idx]
+            X_val_fold = X[val_idx]
+            y_val_fold = y[val_idx]
+            
+            # Build and train model
+            model = model_builder()
+            history = model.fit(
+                X_train_fold, y_train_fold,
+                epochs=5,  # Reduced epochs for CV
+                batch_size=self.config["batch_size"],
+                validation_data=(X_val_fold, y_val_fold),
+                verbose=0
+            )
+            
+            # Evaluate fold
+            metrics = model.evaluate(X_val_fold, y_val_fold, verbose=0)
+            metrics_dict = dict(zip(model.metrics_names, metrics))
+            
+            fold_metrics.append({
+                'val_loss': metrics_dict['loss'],
+                'val_accuracy': metrics_dict['accuracy']
+            })
+            
+        # Aggregate metrics
+        self.metrics['cross_validation'] = {
+            'mean_accuracy': np.mean([m['val_accuracy'] for m in fold_metrics]),
+            'std_accuracy': np.std([m['val_accuracy'] for m in fold_metrics]),
+            'fold_metrics': fold_metrics
+        }
+        
+        logger.info(f"Cross-validation completed. Mean accuracy: {self.metrics['cross_validation']['mean_accuracy']:.4f} "
+                   f"(±{self.metrics['cross_validation']['std_accuracy']:.4f})")
+        return self.metrics
+
+    def evaluate_model_robustness(self, model, X_test, y_test):
+        """Evaluates model robustness through various perturbations."""
+        logger.info("Evaluating model robustness...")
+        
+        # Original performance
+        base_predictions = model.predict(X_test)
+        base_accuracy = np.mean(np.argmax(base_predictions, axis=1) == np.argmax(y_test, axis=1))
+        
+        robustness_metrics = {'base_accuracy': base_accuracy}
+        
+        # Test with noise
+        noise_levels = [0.1, 0.2]
+        for noise in noise_levels:
+            noisy_X = X_test + np.random.normal(0, noise, X_test.shape)
+            noisy_X = np.clip(noisy_X, 0, 1)
+            noisy_pred = model.predict(noisy_X)
+            noisy_acc = np.mean(np.argmax(noisy_pred, axis=1) == np.argmax(y_test, axis=1))
+            robustness_metrics[f'noise_{noise}_accuracy'] = noisy_acc
+        
+        self.metrics['robustness'] = robustness_metrics
+        logger.info("Robustness evaluation completed!")
+        return robustness_metrics
+
 def setup_training_session():
-    """
-    Sets up a new training session with logging and model artifacts directory.
-    Returns the path to save model artifacts.
-    """
+    """Sets up a new training session with logging and artifact directories."""
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     artifacts_dir = f"model_artifacts_{timestamp}"
     os.makedirs(artifacts_dir, exist_ok=True)
@@ -209,16 +372,27 @@ def evaluate_model(model, X_test, y_test, artifacts_dir):
 
 def main():
     """
-    Main training pipeline
+    Main training pipeline with validation steps
     """
     # Setup training session
     artifacts_dir = setup_training_session()
     logger.info(f"Training artifacts will be saved to: {artifacts_dir}")
     
+    # Validate dataset
+    data_validator = DataValidator(CONFIG)
+    validation_results = data_validator.validate_dataset_structure()
+    
     # Load and preprocess data
     X_train, X_test, y_train, y_test = load_data()
     
-    # Build and train model
+    # Validate model through cross-validation
+    model_validator = ModelValidator(CONFIG)
+    cv_metrics = model_validator.cross_validate_model(
+        X_train, y_train,
+        model_builder=build_model
+    )
+    
+    # Build and train final model
     model = build_model()
     
     # Define callbacks
@@ -253,7 +427,18 @@ def main():
         callbacks=callbacks
     )
     
-    # Evaluate model
+    # Evaluate model robustness
+    robustness_metrics = model_validator.evaluate_model_robustness(model, X_test, y_test)
+    
+    # Save validation and robustness metrics
+    metrics_file = os.path.join(artifacts_dir, 'validation_metrics.json')
+    with open(metrics_file, 'w') as f:
+        json.dump({
+            'cross_validation': cv_metrics,
+            'robustness': robustness_metrics
+        }, f, indent=4)
+    
+    # Standard evaluation
     logger.info("Evaluating model performance...")
     evaluate_model(model, X_test, y_test, artifacts_dir)
     
@@ -261,8 +446,23 @@ def main():
     plot_training_history(history, artifacts_dir)
     
     # Save final model in both formats
-    model.save(os.path.join(artifacts_dir, "mask_detector.keras"))
-    model.save("mask_detector.h5")  # Save in root for compatibility
+    logger.info("Saving model in multiple formats...")
+    try:
+        # Save in .h5 format
+        h5_path = os.path.join(artifacts_dir, "mask_detector.h5")
+        model.save(h5_path, save_format='h5')
+        model.save("mask_detector.h5", save_format='h5')  # Save in root for compatibility
+        logger.info("✅ Model saved in .h5 format")
+        
+        # Save in .keras format
+        keras_path = os.path.join(artifacts_dir, "mask_detector.keras")
+        model.save(keras_path, save_format='keras')
+        model.save("mask_detector.keras", save_format='keras')  # Save in root for compatibility
+        logger.info("✅ Model saved in .keras format")
+    except Exception as e:
+        logger.error(f"❌ Error saving model: {str(e)}")
+        raise
+    
     logger.info("✅ Training pipeline completed successfully!")
 
 if __name__ == "__main__":

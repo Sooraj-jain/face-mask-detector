@@ -1,10 +1,31 @@
-opencv-python-headless==4.8.1.78
+# Core ML and data processing
 tensorflow==2.12.0
-keras==2.12.0
+opencv-python-headless==4.8.1.78  # Headless version for cloud deployment
 numpy==1.23.5
-matplotlib==3.7.1
 scikit-learn==1.2.2
+
+# Web application
 streamlit==1.32.2
 streamlit-webrtc==0.45.2
+
+# API and serving
+fastapi==0.68.2
+uvicorn==0.15.0
+python-multipart==0.0.6
+pydantic==1.10.13
+
+# Testing and development
+pytest==7.4.0
+pytest-cov==4.1.0
+
+# Visualization
+matplotlib==3.7.1
+seaborn==0.12.2
+
+# Video processing
 av==10.0.0
 aiortc==1.5.0
+
+# Utilities
+python-dotenv==0.19.2
+requests==2.31.0
