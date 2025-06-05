@@ -13,8 +13,8 @@ import urllib.request
 #model = load_model("mask_detector.keras")
 
 # Auto-download model from Hugging Face
-MODEL_URL = "https://huggingface.co/Sooraj-jain/face-mask-detector/resolve/main/mask_detector.keras"
-MODEL_PATH = "mask_detector.keras"
+MODEL_URL = "https://huggingface.co/Sooraj-jain/face-mask-detector/resolve/main/mask_detector.h5"
+MODEL_PATH = "mask_detector.h5"
 
 if not os.path.exists(MODEL_PATH):
     print("📦 Downloading model from Hugging Face...")

@@ -1,5 +1,6 @@
 # Trained Model
 mask_detector.keras
+mask_detector.h5
 face-mask-dataset/
 
 # Python
@@ -13,6 +14,7 @@ __pycache__/
 .venv/
 env/
 venv/
+testenv/
 
 # IDE configs
 .idea/
@@ -25,3 +27,6 @@ venv/
 
 # Streamlit
 .idea/
+
+# Documenting the challenges faced
+challenges.txt
