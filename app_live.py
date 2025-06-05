@@ -63,63 +63,88 @@ prediction_lock = threading.Lock()
 class VideoTransformer(VideoTransformerBase):
     def __init__(self):
         self.frame_count = 0
-        self.process_every_n_frames = 3  # Increased frame skip for better performance
-        self.last_prediction = None
-        self.prediction_throttle = 0
+        self.prediction_cache = []  # Prediction history for smoothing
+        self.cache_size = 8  # Increased cache size for better smoothing
         
     def transform(self, frame):
         self.frame_count += 1
         img = frame.to_ndarray(format="bgr24")
         
-        # Only process every nth frame
-        if self.frame_count % self.process_every_n_frames != 0:
-            # If we have a last prediction, still show it on skipped frames
-            if self.last_prediction is not None:
-                return self.last_prediction
-            return img
-            
-        # Reduce resolution for processing
-        scale = 0.5
-        small_img = cv2.resize(img, None, fx=scale, fy=scale)
-        gray = cv2.cvtColor(small_img, cv2.COLOR_BGR2GRAY)
+        # Process at full resolution
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         
-        # Detect faces on smaller image
+        # More thorough face detection
         faces = face_cascade.detectMultiScale(
             gray, 
-            scaleFactor=1.1, 
-            minNeighbors=4, 
+            scaleFactor=1.05,  # Smaller scale factor for more accurate detection
+            minNeighbors=6,    # More neighbors for more stable detection
             minSize=(30, 30),
             flags=cv2.CASCADE_SCALE_IMAGE
         )
 
-        # Scale back the face coordinates
-        faces = [(int(x/scale), int(y/scale), int(w/scale), int(h/scale)) for (x, y, w, h) in faces]
-
         with prediction_lock:
             for (x, y, w, h) in faces:
-                # Throttle predictions (don't predict every frame)
-                self.prediction_throttle += 1
-                if self.prediction_throttle % 2 != 0:  # Predict every other detection
-                    continue
-                    
-                # Extract and preprocess the face region
-                face = img[y:y+h, x:x+w]
+                # Add padding to face region for better detection
+                padding_x = int(w * 0.1)  # 10% padding
+                padding_y = int(h * 0.1)
+                
+                # Ensure padded coordinates are within image bounds
+                x1 = max(0, x - padding_x)
+                y1 = max(0, y - padding_y)
+                x2 = min(img.shape[1], x + w + padding_x)
+                y2 = min(img.shape[0], y + h + padding_y)
+                
+                # Extract and preprocess the face region with padding
+                face = img[y1:y2, x1:x2]
                 face_resized = cv2.resize(face, (IMAGE_SIZE, IMAGE_SIZE))
                 face_normalized = face_resized / 255.0
                 face_input = np.reshape(face_normalized, (1, IMAGE_SIZE, IMAGE_SIZE, 3))
 
                 try:
+                    # Get prediction with higher batch size for better accuracy
                     result = model.predict(face_input, verbose=0)
                     label = np.argmax(result)
-                    confidence = round(result[0][label] * 100, 2)
-
-                    cv2.rectangle(img, (x, y), (x+w, y+h), COLORS[label], 2)
-                    cv2.putText(img, f"{LABELS[label]} ({confidence}%)", (x, y - 10),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, COLORS[label], 2)
+                    confidence = result[0][label]
+                    
+                    # Add to prediction cache
+                    self.prediction_cache.append((label, confidence))
+                    if len(self.prediction_cache) > self.cache_size:
+                        self.prediction_cache.pop(0)
+                    
+                    # Weighted majority voting based on confidence
+                    if len(self.prediction_cache) >= 3:  # Wait for minimum predictions
+                        # Calculate weighted votes for each class
+                        votes = {0: 0.0, 1: 0.0}  # Mask: 0, No Mask: 1
+                        for pred_label, pred_conf in self.prediction_cache:
+                            votes[pred_label] += pred_conf
+                        
+                        # Get final prediction
+                        final_label = max(votes.items(), key=lambda x: x[1])[0]
+                        
+                        # Calculate average confidence for the final prediction
+                        relevant_confidences = [conf for (lbl, conf) in self.prediction_cache if lbl == final_label]
+                        avg_confidence = sum(relevant_confidences) / len(relevant_confidences)
+                        confidence_percentage = round(avg_confidence * 100, 2)
+                        
+                        # Only show high-confidence predictions
+                        if confidence_percentage > 70:  # Higher confidence threshold
+                            color = COLORS[final_label]
+                            label_text = f"{LABELS[final_label]} ({confidence_percentage}%)"
+                            
+                            # Draw the face region with padding
+                            cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+                            
+                            # Add background rectangle for text
+                            text_size = cv2.getTextSize(label_text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+                            cv2.rectangle(img, (x1, y1 - 25), (x1 + text_size[0], y1), color, -1)
+                            
+                            # Add prediction text
+                            cv2.putText(img, label_text, (x1, y1 - 10),
+                                      cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                            
                 except Exception as e:
                     st.error(f"Prediction error: {str(e)}")
         
-        self.last_prediction = img
         return img
 
 st.write("Allow camera access and stay in frame to see mask predictions in real time.")
@@ -136,15 +161,16 @@ st.markdown("""
 > 💡 **Tip:** The initial loading time is longer because this is running on a free server. Thank you for your patience!
 """)
 
-# Initialize the WebRTC video stream with optimized configuration
+# Initialize the WebRTC video stream with high quality settings
 webrtc_streamer(
     key="mask-detect",
     video_processor_factory=VideoTransformer,
     media_stream_constraints={
         "video": {
-            "frameRate": {"ideal": 10, "max": 15},  # Further reduced frame rate
-            "width": {"ideal": 640},
-            "height": {"ideal": 480}
+            "frameRate": {"ideal": 30},  # Maximum frame rate for smooth video
+            "width": {"ideal": 1280},    # Higher resolution
+            "height": {"ideal": 720},
+            "facingMode": "user"
         },
         "audio": False
     },
