@@ -2,6 +2,7 @@
 mask_detector.keras
 mask_detector.h5
 face-mask-dataset/
+model_artifacts_*
 
 # Python
 __pycache__/

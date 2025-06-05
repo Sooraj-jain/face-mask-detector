@@ -18,13 +18,13 @@ st.title("😷 Live Face Mask Detection")
 # Add clean, consolidated instructions
 st.info("""
 ### Quick Start Guide
-1. Click **START** below and allow camera access.
+1. Click **START** below and allow camera access when prompted.
 2. The green camera light will turn on immediately, but the video feed takes time (up to a minute) to initialize
 3. Position yourself in front of the camera.
 4. Real-time mask detection will begin automatically.
 
-💡 *Note: Initial loading takes about a minute as this runs on a free server. 
-       Thank you for your patience! *
+💡 Note: Initial loading takes about a minute as this runs on a free server. 
+       Thank you for your patience! 
 """)
 
 # Cache the model loading to avoid reloading on every rerun
@@ -78,17 +78,17 @@ class VideoTransformer(VideoTransformerBase):
         # More thorough face detection
         faces = face_cascade.detectMultiScale(
             gray, 
-            scaleFactor=1.05,  # Smaller scale factor for more accurate detection
-            minNeighbors=6,    # More neighbors for more stable detection
-            minSize=(30, 30),
+            scaleFactor=1.1,     # Increased for more stable detection
+            minNeighbors=8,      # Increased for more reliable detection
+            minSize=(50, 50),    # Increased minimum face size
             flags=cv2.CASCADE_SCALE_IMAGE
         )
 
         with prediction_lock:
             for (x, y, w, h) in faces:
                 # Add padding to face region for better detection
-                padding_x = int(w * 0.1)  # 10% padding
-                padding_y = int(h * 0.1)
+                padding_x = int(w * 0.15)  # Increased to 15% padding
+                padding_y = int(h * 0.15)
                 
                 # Ensure padded coordinates are within image bounds
                 x1 = max(0, x - padding_x)
@@ -103,22 +103,25 @@ class VideoTransformer(VideoTransformerBase):
                 face_input = np.reshape(face_normalized, (1, IMAGE_SIZE, IMAGE_SIZE, 3))
 
                 try:
-                    # Get prediction with higher batch size for better accuracy
+                    # Get prediction
                     result = model.predict(face_input, verbose=0)
                     label = np.argmax(result)
                     confidence = result[0][label]
                     
                     # Add to prediction cache
                     self.prediction_cache.append((label, confidence))
-                    if len(self.prediction_cache) > self.cache_size:
+                    if len(self.prediction_cache) > 5:  # Reduced cache size for faster response
                         self.prediction_cache.pop(0)
                     
                     # Weighted majority voting based on confidence
-                    if len(self.prediction_cache) >= 3:  # Wait for minimum predictions
+                    if len(self.prediction_cache) >= 2:  # Reduced minimum predictions
                         # Calculate weighted votes for each class
                         votes = {0: 0.0, 1: 0.0}  # Mask: 0, No Mask: 1
-                        for pred_label, pred_conf in self.prediction_cache:
-                            votes[pred_label] += pred_conf
+                        recent_weight = 1.5  # Give more weight to recent predictions
+                        
+                        for i, (pred_label, pred_conf) in enumerate(self.prediction_cache):
+                            weight = recent_weight if i >= len(self.prediction_cache) - 2 else 1.0
+                            votes[pred_label] += pred_conf * weight
                         
                         # Get final prediction
                         final_label = max(votes.items(), key=lambda x: x[1])[0]
@@ -129,7 +132,7 @@ class VideoTransformer(VideoTransformerBase):
                         confidence_percentage = round(avg_confidence * 100, 2)
                         
                         # Only show high-confidence predictions
-                        if confidence_percentage > 70:  # Higher confidence threshold
+                        if confidence_percentage > 85:  # Increased confidence threshold
                             color = COLORS[final_label]
                             label_text = f"{LABELS[final_label]} ({confidence_percentage}%)"
                             
