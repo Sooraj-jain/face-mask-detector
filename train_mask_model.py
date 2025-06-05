@@ -70,4 +70,5 @@ if __name__ == "__main__":
     
     # Save the trained model
     model.save("mask_detector.keras")
-    print("✅ Model training complete and saved as mask_detector.keras")
+    model.save("mask_detector.h5")
+    print("✅ Model saved in both .keras and .h5 formats")
