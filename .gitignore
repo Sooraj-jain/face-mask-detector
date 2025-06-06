@@ -1,6 +1,7 @@
 # Trained Model & Dataset
 mask_detector.keras
 mask_detector.h5
+mask_detector_v1.h5
 face-mask-dataset/
 
 # Trained Model checkpoints
@@ -18,7 +19,7 @@ __pycache__/
 env/
 venv/
 testenv/
-.faceMaskEnv
+.faceMaskEnv/
 
 # IDE configs
 .idea/
