@@ -35,6 +35,11 @@ selected_version = st.sidebar.selectbox(
     index=0
 )
 
+# Add cache clearing button
+if st.sidebar.button("Clear Cache and Reload Model"):
+    st.cache_resource.clear()
+    st.experimental_rerun()
+
 # Load selected model version
 model = load_face_mask_model(selected_version)
 
