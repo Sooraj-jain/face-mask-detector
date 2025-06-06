@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 import threading
-from utils.model_utils import load_face_mask_model, get_model_versions
+from utils.model_utils import load_face_mask_model
 
 # Setup Streamlit web interface
 st.title("😷 Live Face Mask Detection")
@@ -25,23 +25,8 @@ st.info("""
        Thank you for your patience! 
 """)
 
-# Add model version selector in the sidebar with descriptions
-st.sidebar.title("Model Settings")
-versions, format_version = get_model_versions()
-selected_version = st.sidebar.selectbox(
-    "Select Model Version",
-    options=versions,
-    format_func=format_version,
-    index=0
-)
-
-# Add cache clearing button
-if st.sidebar.button("Clear Cache and Reload Model"):
-    st.cache_resource.clear()
-    st.experimental_rerun()
-
-# Load selected model version
-model = load_face_mask_model(selected_version)
+# Load latest model version
+model = load_face_mask_model("latest")
 
 # Configuration constants
 IMAGE_SIZE = 100  # Size that the model expects
