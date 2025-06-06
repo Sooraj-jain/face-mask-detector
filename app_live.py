@@ -6,11 +6,9 @@ import streamlit as st
 import av
 import cv2
 import numpy as np
-import os
-import urllib.request
-from tensorflow.keras.models import load_model
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 import threading
+from utils.model_utils import load_face_mask_model, get_model_versions
 
 # Setup Streamlit web interface
 st.title("😷 Live Face Mask Detection")
@@ -27,29 +25,18 @@ st.info("""
        Thank you for your patience! 
 """)
 
-# Cache the model loading to avoid reloading on every rerun
-@st.cache_resource
-def load_face_mask_model():
-    LOCAL_MODEL_PATH = "mask_detector.h5"
-    BACKUP_MODEL_URL = "https://huggingface.co/Sooraj-jain/face-mask-detector/resolve/main/mask_detector.h5"
-    
-    try:
-        model = load_model(LOCAL_MODEL_PATH)
-        st.success("✅ Model loaded successfully!")
-    except Exception as e:
-        st.info("📦 Downloading model from cloud storage...")
-        try:
-            if not os.path.exists(LOCAL_MODEL_PATH):
-                urllib.request.urlretrieve(BACKUP_MODEL_URL, LOCAL_MODEL_PATH)
-            model = load_model(LOCAL_MODEL_PATH)
-            st.success("✅ Model ready!")
-        except Exception as e:
-            st.error(f"❌ Error loading model: {str(e)}")
-            st.stop()
-    return model
+# Add model version selector in the sidebar with descriptions
+st.sidebar.title("Model Settings")
+versions, format_version = get_model_versions()
+selected_version = st.sidebar.selectbox(
+    "Select Model Version",
+    options=versions,
+    format_func=format_version,
+    index=0
+)
 
-# Load model
-model = load_face_mask_model()
+# Load selected model version
+model = load_face_mask_model(selected_version)
 
 # Configuration constants
 IMAGE_SIZE = 100  # Size that the model expects
@@ -167,7 +154,10 @@ webrtc_streamer(
     },
     async_processing=True,
     rtc_configuration={
-        "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}],
+        "iceServers": [
+            {"urls": ["stun:stun.l.google.com:19302"]},
+            {"urls": ["stun:stun1.l.google.com:19302"]}
+        ],
         "iceTransportPolicy": "all",
         "bundlePolicy": "max-bundle",
     }

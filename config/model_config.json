@@ -1,0 +1,19 @@
+{
+    "models": {
+        "latest": {
+            "version": "v2",
+            "file": "mask_detector.h5",
+            "url": "https://huggingface.co/Sooraj-jain/face-mask-detector/resolve/main/mask_detector.h5",
+            "description": "Enhanced model with improved accuracy and balanced performance (June 2025)",
+            "date": "2025-06-06"
+        },
+        "v1": {
+            "version": "v1",
+            "file": "mask_detector_v1.h5",
+            "url": "https://huggingface.co/Sooraj-jain/face-mask-detector/resolve/v1/mask_detector.h5",
+            "description": "Initial release with basic detection capabilities",
+            "date": "2025-06-05"
+        }
+    },
+    "default_version": "latest"
+} 

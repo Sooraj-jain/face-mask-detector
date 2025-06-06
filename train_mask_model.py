@@ -42,15 +42,19 @@ logger = logging.getLogger(__name__)
 CONFIG = {
     "image_size": 100,
     "batch_size": 32,
-    "epochs": 20,
+    "epochs": 15,            # Balanced number of epochs
     "learning_rate": 0.001,
     "dataset_path": "face-mask-dataset",
     "validation_split": 0.2,
     "random_state": 42,
-    "min_samples_per_class": 100,  # Minimum required samples per class
+    "min_samples_per_class": 100,
     "required_classes": ["with_mask", "without_mask"],
     "image_channels": 3,
-    "cross_validation_folds": 5
+    "cross_validation_folds": 5,
+    "early_stopping_patience": 5,
+    "reduce_lr_patience": 3,
+    "reduce_lr_factor": 0.2,
+    "min_lr": 1e-6
 }
 
 class DataValidator:
@@ -273,47 +277,39 @@ def load_data():
 
 def build_model():
     """
-    Model Architecture Implementation
-    -------------------------------
-    Creates a CNN optimized for face mask detection:
-    - Uses BatchNormalization for better training stability
-    - Implements dropout for regularization
-    - Optimized for real-time inference
-    
-    Returns:
-        Sequential: Compiled Keras model
+    Creates a CNN model architecture optimized for face mask detection.
+    Balances between complexity and accuracy:
+    - Uses proven base architecture
+    - Adds minimal but effective regularization
+    - Maintains fast inference time
     """
     model = Sequential([
-        # First Convolutional Block
-        Conv2D(32, (3, 3), activation='relu', input_shape=(CONFIG["image_size"], CONFIG["image_size"], 3)),
-        BatchNormalization(),
+        # First Convolutional Block - Base feature extraction
+        Conv2D(32, (3, 3), activation='relu', padding='same',
+               input_shape=(CONFIG["image_size"], CONFIG["image_size"], 3)),
         MaxPooling2D(2, 2),
         
-        # Second Convolutional Block
-        Conv2D(64, (3, 3), activation='relu'),
-        BatchNormalization(),
+        # Second Convolutional Block - Feature enhancement
+        Conv2D(64, (3, 3), activation='relu', padding='same'),
         MaxPooling2D(2, 2),
         
-        # Third Convolutional Block
-        Conv2D(128, (3, 3), activation='relu'),
-        BatchNormalization(),
+        # Third Convolutional Block - Fine-grained features
+        Conv2D(64, (3, 3), activation='relu', padding='same'),
         MaxPooling2D(2, 2),
         
         # Flatten and Dense Layers
         Flatten(),
-        Dense(256, activation='relu'),
-        BatchNormalization(),
-        Dropout(0.5),
+        Dense(128, activation='relu'),
+        Dropout(0.5),  # Proven dropout rate
         Dense(2, activation='softmax')
     ])
     
     model.compile(
         optimizer='adam',
         loss='categorical_crossentropy',
-        metrics=['accuracy', 'AUC']
+        metrics=['accuracy', 'AUC']  # Track both accuracy and AUC
     )
     
-    logger.info(f"Model architecture built:\n{model.summary()}")
     return model
 
 def plot_training_history(history, artifacts_dir):
@@ -372,20 +368,26 @@ def evaluate_model(model, X_test, y_test, artifacts_dir):
 
 def main():
     """
-    Main training pipeline with validation steps
+    Production-grade training pipeline with:
+    - Data validation
+    - Cross-validation for model stability
+    - Proper model checkpointing
+    - Performance monitoring
+    - Model evaluation
     """
+    logger.info("Starting model training pipeline...")
+    
     # Setup training session
     artifacts_dir = setup_training_session()
-    logger.info(f"Training artifacts will be saved to: {artifacts_dir}")
     
-    # Validate dataset
+    # Load and validate data
     data_validator = DataValidator(CONFIG)
-    validation_results = data_validator.validate_dataset_structure()
+    data_validator.validate_dataset_structure()
     
     # Load and preprocess data
     X_train, X_test, y_train, y_test = load_data()
     
-    # Validate model through cross-validation
+    # Cross-validation for model stability
     model_validator = ModelValidator(CONFIG)
     cv_metrics = model_validator.cross_validate_model(
         X_train, y_train,
@@ -395,8 +397,9 @@ def main():
     # Build and train final model
     model = build_model()
     
-    # Define callbacks
+    # Essential callbacks for production training
     callbacks = [
+        # Save best model
         ModelCheckpoint(
             os.path.join(artifacts_dir, 'best_model.h5'),
             monitor='val_accuracy',
@@ -404,64 +407,50 @@ def main():
             mode='max',
             verbose=1
         ),
+        # Prevent overfitting
         EarlyStopping(
             monitor='val_loss',
-            patience=5,
-            restore_best_weights=True
+            patience=CONFIG["early_stopping_patience"],
+            restore_best_weights=True,
+            verbose=1
         ),
+        # Adjust learning rate
         ReduceLROnPlateau(
             monitor='val_loss',
-            factor=0.2,
-            patience=3,
-            min_lr=1e-6
+            factor=CONFIG["reduce_lr_factor"],
+            patience=CONFIG["reduce_lr_patience"],
+            min_lr=CONFIG["min_lr"],
+            verbose=1
         )
     ]
     
-    # Train model
-    logger.info("Starting model training...")
+    # Train with monitoring
     history = model.fit(
         X_train, y_train,
         epochs=CONFIG["epochs"],
         batch_size=CONFIG["batch_size"],
         validation_data=(X_test, y_test),
-        callbacks=callbacks
+        callbacks=callbacks,
+        verbose=1
     )
     
-    # Evaluate model robustness
-    robustness_metrics = model_validator.evaluate_model_robustness(model, X_test, y_test)
-    
-    # Save validation and robustness metrics
-    metrics_file = os.path.join(artifacts_dir, 'validation_metrics.json')
-    with open(metrics_file, 'w') as f:
-        json.dump({
-            'cross_validation': cv_metrics,
-            'robustness': robustness_metrics
-        }, f, indent=4)
-    
-    # Standard evaluation
-    logger.info("Evaluating model performance...")
+    # Comprehensive evaluation
     evaluate_model(model, X_test, y_test, artifacts_dir)
-    
-    # Plot training history
     plot_training_history(history, artifacts_dir)
     
-    # Save final model in both formats
-    logger.info("Saving model in multiple formats...")
+    # Save model in both formats with proper error handling
     try:
-        # Save in .h5 format
-        h5_path = os.path.join(artifacts_dir, "mask_detector.h5")
-        model.save(h5_path, save_format='h5')
-        model.save("mask_detector.h5", save_format='h5')  # Save in root for compatibility
-        logger.info("✅ Model saved in .h5 format")
-        
-        # Save in .keras format
-        keras_path = os.path.join(artifacts_dir, "mask_detector.keras")
-        model.save(keras_path, save_format='keras')
-        model.save("mask_detector.keras", save_format='keras')  # Save in root for compatibility
-        logger.info("✅ Model saved in .keras format")
+    model.save("mask_detector.keras")
+    model.save("mask_detector.h5")
+        logger.info("✅ Model saved in both .keras and .h5 formats")
     except Exception as e:
         logger.error(f"❌ Error saving model: {str(e)}")
         raise
+    
+    # Log final metrics
+    final_val_metrics = model.evaluate(X_test, y_test, verbose=0)
+    metrics_dict = dict(zip(model.metrics_names, final_val_metrics))
+    logger.info(f"Final Validation Metrics: {metrics_dict}")
     
     logger.info("✅ Training pipeline completed successfully!")
 

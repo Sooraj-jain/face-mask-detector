@@ -1,7 +1,9 @@
-# Trained Model
+# Trained Model & Dataset
 mask_detector.keras
 mask_detector.h5
 face-mask-dataset/
+
+# Trained Model checkpoints
 model_artifacts_*
 
 # Python
@@ -16,8 +18,7 @@ __pycache__/
 env/
 venv/
 testenv/
-faceMaskEnv/
-.faceMaskEnv/
+.faceMaskEnv
 
 # IDE configs
 .idea/
@@ -32,4 +33,7 @@ faceMaskEnv/
 .idea/
 
 # Documenting the challenges faced
-challenges.txt
+utils/challenges.txt
+
+# Keep .streamlit/config.toml but ignore certificates
+.streamlit/*.pem
