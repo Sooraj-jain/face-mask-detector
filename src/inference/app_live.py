@@ -11,6 +11,9 @@ import threading
 
 from src.utils.model_utils import load_face_mask_model
 
+if __name__ == "__main__":
+    print("🔍 Debug: Face Mask Detection App Starting...")
+
 # Setup Streamlit web interface
 st.title("😷 Live Face Mask Detection")
 
