@@ -38,3 +38,6 @@ utils/challenges.txt
 
 # Keep .streamlit/config.toml but ignore certificates
 .streamlit/*.pem
+
+# SSL certificates for local development
+.ssl/
