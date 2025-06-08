@@ -8,7 +8,8 @@ import cv2
 import numpy as np
 from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 import threading
-from utils.model_utils import load_face_mask_model
+
+from src.utils.model_utils import load_face_mask_model
 
 # Setup Streamlit web interface
 st.title("😷 Live Face Mask Detection")

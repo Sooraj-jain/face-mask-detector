@@ -440,8 +440,8 @@ def main():
     
     # Save model in both formats with proper error handling
     try:
-    model.save("mask_detector.keras")
-    model.save("mask_detector.h5")
+        model.save("models/mask_detector.keras")
+        model.save("models/mask_detector.h5")
         logger.info("✅ Model saved in both .keras and .h5 formats")
     except Exception as e:
         logger.error(f"❌ Error saving model: {str(e)}")

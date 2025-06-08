@@ -14,10 +14,11 @@ fi
 echo "⚙️  Setting up local configuration..."
 cp .streamlit/config_local.toml .streamlit/config.toml
 
-# Activate virtual environment and run
+# Activate virtual environment and set up Python path
 echo "🚀 Starting application..."
 source .FaceMaskDetectorEnv/bin/activate
-streamlit run app_live.py
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+streamlit run src/inference/app_live.py
 
 echo "✅ Access your app at: https://localhost:8501"
 echo "⚠️  Accept the security warning in your browser for the self-signed certificate" 

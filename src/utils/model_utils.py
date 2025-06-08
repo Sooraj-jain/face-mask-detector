@@ -5,10 +5,16 @@ Utility functions for model loading and version management.
 import os
 import json
 import urllib.request
+import sys
 from tensorflow.keras.models import load_model
 import streamlit as st
-import sys
 
+# Optimized path resolution - pre-compute project root
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+@st.cache_data
 def load_model_config():
     """Load model configuration from JSON file."""
     config_path = os.path.join('config', 'model_config.json')
@@ -55,7 +61,3 @@ def load_face_mask_model(version="latest"):
             st.stop()
     
     return model 
-
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-if project_root not in sys.path:
-    sys.path.append(project_root) 

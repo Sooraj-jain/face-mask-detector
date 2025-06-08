@@ -47,8 +47,8 @@ app.add_middleware(
 
 # Constants
 MODEL_PATHS = {
-    'h5': "mask_detector.h5",
-    'keras': "mask_detector.keras"
+    'h5': "models/mask_detector.h5",
+    'keras': "models/mask_detector.keras"
 }
 IMAGE_SIZE = 100
 LABELS = ["Mask", "No Mask"]
